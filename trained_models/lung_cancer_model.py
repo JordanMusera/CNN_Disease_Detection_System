@@ -10,7 +10,7 @@ from PIL import Image,ImageFile,UnidentifiedImageError
 model = models.resnet18(weights=None)
 model.fc = nn.Linear(model.fc.in_features,3)
 model.load_state_dict(torch.load(
-    '',
+    "C:\\Projects\\python\\deep_learning\\chest_xray_phneumonia_detection_CNN\\lungcancer_classifier.pth",
     map_location=torch.device('cpu')
 ))
 model.eval()
@@ -40,11 +40,11 @@ def handler(job):
         except UnidentifiedImageError:
             return({'status':'error','message':'Unidentified image error'})
         
-        image.transform(image).unsqueeze(0)
+        image = transform(image).unsqueeze(0)
         
         with torch.no_grad():
-            outputs = model(0),
-            _,preds = torch.max(outputs,1),
+            outputs = model(image)
+            _,preds = torch.max(outputs,1)
             prediction = class_name[preds.item()]
         return({'status':'success',
                 'prediction':prediction})
