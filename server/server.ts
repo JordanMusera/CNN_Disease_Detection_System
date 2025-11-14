@@ -1,6 +1,7 @@
 import express from "express";
 import cors from "cors";
 import { spawn } from "child_process";
+import path from "path";
 
 const app = express();
 app.use(cors());
@@ -16,9 +17,8 @@ app.post("/post", (req, res) => {
   }
 
   // Spawn Python process
-  const pythonProcess = spawn("python", [
-    `./trained_models/${model}_model.py`
-  ]);
+   const modelPath = path.join(__dirname, "..", "trained_models", "tuberculosis_model.py");
+   const pythonProcess = spawn("python3", [modelPath]);
 
   // Send input to Python
   pythonProcess.stdin.write(JSON.stringify({ input: image }));

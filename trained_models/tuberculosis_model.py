@@ -1,4 +1,5 @@
 #%%
+import os
 import torch
 import torch.nn as nn
 from torchvision import models, transforms
@@ -18,10 +19,11 @@ ImageFile.LOAD_TRUNCATED_IMAGES = True
 
 model = models.resnet18(weights=None)
 model.fc = nn.Linear(model.fc.in_features, 2)
-model.load_state_dict(torch.load(
-    "./pth_files/tb_classifier.pth",
-    map_location=torch.device('cpu')
-))
+
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))  # folder of this .py file
+MODEL_PATH = os.path.join(BASE_DIR, "..", "pth_files", "tb_classifier.pth")
+
+model.load_state_dict(torch.load(MODEL_PATH, map_location=torch.device("cpu")))
 model.eval()
 
 device = torch.device("cpu")
