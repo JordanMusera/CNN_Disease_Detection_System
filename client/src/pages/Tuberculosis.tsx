@@ -7,7 +7,6 @@ const Tuberculosis = () => {
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<string | null>(null);
   const [heatmap, setHeatmap] = useState<string | null>(null);
-  const [description, setDescription] = useState<string | null>(null);
 
   const causes = [
     "Bacteria (Mycobacterium tuberculosis)",

@@ -19,7 +19,7 @@ ImageFile.LOAD_TRUNCATED_IMAGES = True
 model = models.resnet18(weights=None)
 model.fc = nn.Linear(model.fc.in_features, 2)
 model.load_state_dict(torch.load(
-    r"C:\Projects\python\deep_learning\chest_xray_phneumonia_detection_CNN\pth_files\tb_classifier.pth",
+    "./pth_files/tb_classifier.pth",
     map_location=torch.device('cpu')
 ))
 model.eval()

@@ -17,7 +17,7 @@ app.post("/post", (req, res) => {
 
   // Spawn Python process
   const pythonProcess = spawn("python", [
-    `C:\\Projects\\python\\deep_learning\\chest_xray_phneumonia_detection_CNN\\trained_models\\${model}_model.py`
+    `./trained_models/${model}_model.py`
   ]);
 
   // Send input to Python
