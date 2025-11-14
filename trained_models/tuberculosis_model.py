@@ -9,20 +9,17 @@ import sys, json, warnings
 import numpy as np
 import cv2
 
-# Grad-CAM imports
 from pytorch_grad_cam import GradCAM
 from pytorch_grad_cam.utils.image import show_cam_on_image
 from pytorch_grad_cam.utils.model_targets import ClassifierOutputTarget
 
-# --- Suppress warnings for clean JSON output ---
 warnings.filterwarnings("ignore")
 ImageFile.LOAD_TRUNCATED_IMAGES = True
 
-# 1. Load the model
 model = models.resnet18(weights=None)
 model.fc = nn.Linear(model.fc.in_features, 2)
 model.load_state_dict(torch.load(
-    r'C:\Projects\python\deep_learning\chest_xray_phneumonia_detection_CNN\pneumonia_classifier.pth',
+    r"C:\Projects\python\deep_learning\chest_xray_phneumonia_detection_CNN\pth_files\tb_classifier.pth",
     map_location=torch.device('cpu')
 ))
 model.eval()
@@ -30,7 +27,6 @@ model.eval()
 device = torch.device("cpu")
 model.to(device)
 
-# 2. Define transformations
 transform = transforms.Compose([
     transforms.Resize((224, 224)),
     transforms.ToTensor(),
@@ -38,17 +34,14 @@ transform = transforms.Compose([
                          std=[0.229, 0.224, 0.225])
 ])
 
-# 3. Class labels
 class_names = ['Normal', 'Tuberculosis']
 
-# 4. Inference + Grad-CAM + Base64 Output
 def handler(job):
     try:
         image_base64 = job.get('input', '')
         if not image_base64:
             return {"status": "error", "message": "No image data received."}
 
-        # Remove prefix like 'data:image/jpeg;base64,'
         if image_base64.startswith('data:image'):
             image_base64 = image_base64.split(',')[1]
 
@@ -61,39 +54,33 @@ def handler(job):
 
         img_for_model = transform(original_image).unsqueeze(0).to(device)
 
-        # Forward pass
         with torch.no_grad():
             outputs = model(img_for_model)
             pred_idx = torch.argmax(outputs, 1).item()
             prediction = class_names[pred_idx]
 
-        # ----- GRAD-CAM -----
         target_layer = model.layer4[-1]
         cam = GradCAM(model=model, target_layers=[target_layer])
         targets = [ClassifierOutputTarget(pred_idx)]
         grayscale_cam = cam(input_tensor=img_for_model, targets=targets)[0]
 
-        # Convert original to normalized numpy for heatmap overlay
         img_np = np.array(original_image.resize((224, 224))) / 255.0
         heatmap = show_cam_on_image(img_np, grayscale_cam, use_rgb=True)
 
-        # Convert heatmap to base64
         heatmap_pil = Image.fromarray(heatmap)
         buffer = BytesIO()
         heatmap_pil.save(buffer, format="JPEG")
         heatmap_base64 = base64.b64encode(buffer.getvalue()).decode('utf-8')
-    
 
         return {
             "status": "success",
             "prediction": prediction,
-            "heatmap_base64": heatmap_base64  # <--- return overlay image
+            "heatmap_base64": heatmap_base64
         }
 
     except Exception as e:
         return {"status": "error", "message": str(e)}
 
-# 5. Entry point for Node.js
 if __name__ == "__main__":
     try:
         input_json = sys.stdin.read()
