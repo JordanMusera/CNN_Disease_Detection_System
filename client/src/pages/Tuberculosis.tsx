@@ -48,7 +48,6 @@ const Tuberculosis = () => {
     setLoading(true);
     setResult(null);
     setHeatmap(null);
-    setDescription(null);
 
     try {
       const response = await fetch("https://cnn-disease-detection-system-server.onrender.com/post", {
@@ -132,7 +131,6 @@ const Tuberculosis = () => {
         {result && (
           <div className="bg-white rounded-3xl p-6 mt-6 w-full max-w-4xl">
             <h2 className="text-2xl font-bold text-green-700 mb-3">{result}</h2>
-            <p className="text-gray-700 leading-relaxed mb-4">{description}</p>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-4">
               <div className="bg-green-50 p-4 rounded-xl shadow-inner">
                 <h3 className="font-semibold text-gray-800 mb-2">Causes</h3>
