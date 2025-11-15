@@ -2,6 +2,7 @@ from fastapi import FastAPI
 from pydantic import BaseModel
 import importlib
 import base64
+from fastapi.middleware.cors import CORSMiddleware
 
 print("api.py loaded")
 
