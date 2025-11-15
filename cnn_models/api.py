@@ -7,6 +7,14 @@ print("api.py loaded")
 
 app = FastAPI()
 
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["https://cnn-disease-detection-system-server.onrender.com"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 class ImageInput(BaseModel):
     image_base64: str
 

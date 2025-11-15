@@ -2,7 +2,15 @@ import express, { Request, Response } from "express";
 import cors from "cors";
 
 const app = express();
-app.use(cors());
+
+app.use((req, res, next) => {
+  res.header("Access-Control-Allow-Origin", "https://cnn-disease-detection-system-client.onrender.com");
+  res.header("Access-Control-Allow-Headers", "Content-Type, Authorization");
+  res.header("Access-Control-Allow-Methods", "GET, POST");
+  next();
+});
+
+
 app.use(express.json({ limit: "20mb" }));
 
 const PYTHON_API_URL = "https://cnn-disease-detection-system-models.onrender.com";
