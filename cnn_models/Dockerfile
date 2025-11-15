@@ -25,6 +25,9 @@ RUN pip install grad-cam==1.4.6
 # Install other dependencies
 RUN pip install --no-cache-dir -r requirements.txt
 
+RUN apt-get update && apt-get install -y libgl1
+
+
 # Expose FastAPI port
 EXPOSE 8000
 
