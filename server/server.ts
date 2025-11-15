@@ -5,7 +5,7 @@ const app = express();
 app.use(cors());
 app.use(express.json({ limit: "20mb" }));
 
-const PYTHON_API_URL = "http://localhost:8000";
+const PYTHON_API_URL = "https://cnn-disease-detection-system-models.onrender.com";
 
 app.listen(5000, () =>
   console.log("Node Server running on http://localhost:5000")
