@@ -5,6 +5,5 @@ torchvision
 pillow
 numpy
 opencv-python-headless
-pytorch
 grad-cam==1.4.6
 pydantic==2.3.0
