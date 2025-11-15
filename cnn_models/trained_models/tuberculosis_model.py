@@ -64,4 +64,5 @@ def handler(base64_image: str):
         }
 
     except Exception as e:
-        return {"status": "error", "message": str(e)}
+        print("MODEL ERROR:", repr(e))
+        return {"status": "error", "message": e}
