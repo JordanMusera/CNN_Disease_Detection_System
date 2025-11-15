@@ -11,6 +11,12 @@ COPY . /app
 RUN apt-get update && apt-get install -y \
     build-essential \
     curl \
+    libglib2.0-0 \
+    libgthread-2.0-0 \
+    libgl1 \
+    libsm6 \
+    libxext6 \
+    libxrender-dev \
     && rm -rf /var/lib/apt/lists/*
 
 # Upgrade pip, setuptools, wheel
@@ -24,9 +30,6 @@ RUN pip install grad-cam==1.4.6
 
 # Install other dependencies
 RUN pip install --no-cache-dir -r requirements.txt
-
-RUN apt-get update && apt-get install -y libgl1
-
 
 # Expose FastAPI port
 EXPOSE 8000
