@@ -32,26 +32,36 @@ transform = transforms.Compose([
 
 class_names = ["Normal", "Tuberculosis"]
 
-def handler(job):
+def handler(base64_image: str):
     try:
-        image_base64 = job.get("input") or job.get("image_base64")
-        if not image_base64:
+        if not base64_image:
             return {"status": "error", "message": "No image data provided"}
 
-        if image_base64.startswith("data:image"):
-            image_base64 = image_base64.split(",")[1]
+        # Remove data URL prefix if present
+        if base64_image.startswith("data:image"):
+            base64_image = base64_image.split(",")[1]
 
-        image_bytes = base64.b64decode(image_base64)
+        # Decode
+        image_bytes = base64.b64decode(base64_image)
         original_image = Image.open(BytesIO(image_bytes)).convert("RGB")
+
+        # Preprocess
         img_tensor = transform(original_image).unsqueeze(0)
 
+        # Predict
         with torch.no_grad():
             outputs = model(img_tensor)
             pred_idx = outputs.argmax(1).item()
             prediction = class_names[pred_idx]
 
+        # Generate heatmap
         heatmap_base64 = generate_heatmap(model, img_tensor, original_image, pred_idx)
 
-        return {"status": "success", "prediction": prediction, "heatmap_base64": heatmap_base64}
+        return {
+            "status": "success",
+            "prediction": prediction,
+            "heatmap_base64": heatmap_base64
+        }
+
     except Exception as e:
         return {"status": "error", "message": str(e)}
