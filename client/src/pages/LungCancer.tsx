@@ -33,6 +33,8 @@ const LungCancer = () => {
     if (!selectedFile) return;
     setFile(selectedFile);
     setHeatmap(null);
+    setResult(null);
+    setDescription(null);
     const reader = new FileReader();
     reader.onloadend = () => {
       setBase64(reader.result as string);
@@ -52,21 +54,32 @@ const LungCancer = () => {
     setDescription(null);
 
     try {
-      const response = await fetch("https://cnn-disease-detection-system-server.onrender.com/post", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ model:'lung_cancer',image: base64 }),
-      });
+      const response = await fetch(
+        "https://cnn-disease-detection-system-server.onrender.com/post",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ model: "lung_cancer", image: base64 }),
+        }
+      );
       const data = await response.json();
+
       if (data.status === "success") {
-        setResult(data.prediction);
+        setResult(data.final_prediction);
         setHeatmap(`data:image/jpeg;base64,${data.heatmap_base64}`);
+        setDescription(
+          data.final_prediction === "Malignant"
+            ? "The AI model has detected abnormal malignant lung tissue."
+            : "The AI model has detected normal or benign tissue."
+        );
       } else {
         setResult(`Error: ${data.message}`);
+        setDescription(null);
       }
     } catch (error) {
       console.error(error);
       setResult("Failed to process image!");
+      setDescription(null);
     } finally {
       setLoading(false);
     }
@@ -152,20 +165,20 @@ const LungCancer = () => {
                 </ul>
               </div>
             </div>
-           <div className="mt-6 bg-gradient-to-r from-purple-200 to-purple-100 p-4 rounded-xl shadow-inner text-center">
-  <h3 className="font-semibold text-gray-800 mb-2">AI Model Training & Limitations</h3>
-  <p className="text-gray-700 mb-2">
-    Training Accuracy: <span className="font-bold">{trainingInfo.trainingAccuracy}%</span>
-  </p>
-  <p className="text-gray-700 mb-2">
-    Validation Accuracy: <span className="font-bold">{trainingInfo.validationAccuracy}%</span>
-  </p>
-  <p className="text-red-600 font-medium mt-2">
-    Important: While the AI model can identify the presence of lung cancer, it cannot accurately pinpoint the infected areas. 
-    The Grad-CAM visualization should not be relied upon for medical interpretation in this case.
-  </p>
-</div>
 
+            <div className="mt-6 bg-gradient-to-r from-purple-200 to-purple-100 p-4 rounded-xl shadow-inner text-center">
+              <h3 className="font-semibold text-gray-800 mb-2">AI Model Training & Limitations</h3>
+              <p className="text-gray-700 mb-2">
+                Training Accuracy: <span className="font-bold">{trainingInfo.trainingAccuracy}%</span>
+              </p>
+              <p className="text-gray-700 mb-2">
+                Validation Accuracy: <span className="font-bold">{trainingInfo.validationAccuracy}%</span>
+              </p>
+              <p className="text-red-600 font-medium mt-2">
+                Important: While the AI model can identify the presence of lung cancer, it cannot accurately pinpoint the infected areas. 
+                The Grad-CAM visualization should not be relied upon for medical interpretation.
+              </p>
+            </div>
           </div>
         )}
       </div>

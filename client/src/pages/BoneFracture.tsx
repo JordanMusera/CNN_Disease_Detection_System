@@ -35,7 +35,7 @@ const BoneFracture = () => {
     reader.onloadend = () => {
       setBase64(reader.result as string);
       setPreview(URL.createObjectURL(selectedFile));
-      setHeatmap(null); // reset previous heatmap
+      setHeatmap(null);
     };
     reader.readAsDataURL(selectedFile);
   };
@@ -58,7 +58,7 @@ const BoneFracture = () => {
       const data = await response.json();
       if (data.status === "success") {
         setResult(data.prediction);
-        setHeatmap(data.heatmap_base64 || null); // <-- store Grad-CAM heatmap
+        setHeatmap(data.heatmap_base64 || null);
       } else {
         setResult(`Error: ${data.message}`);
       }
