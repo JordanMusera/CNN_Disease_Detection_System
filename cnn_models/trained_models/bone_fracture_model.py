@@ -1,30 +1,25 @@
-#%%
+import os, base64
+from io import BytesIO
+from PIL import Image, ImageFile
 import torch
 import torch.nn as nn
 from torchvision import models, transforms
-from PIL import Image, ImageFile, UnidentifiedImageError
-import base64
-from io import BytesIO
-import sys, json, warnings
-import numpy as np
-from pytorch_grad_cam import GradCAM
-from pytorch_grad_cam.utils.image import show_cam_on_image
-from pytorch_grad_cam.utils.model_targets import ClassifierOutputTarget
-import os
+from utils.heatmap import generate_heatmap
 
-warnings.filterwarnings("ignore")
 ImageFile.LOAD_TRUNCATED_IMAGES = True
 
-device = torch.device("cpu")
-
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-PTH_DIR = os.path.join(BASE_DIR, "pth_files")
-MODEL_PTH = os.path.join(PTH_DIR, "bone_fracture_classifier.pth")
+PTH_PATH = os.path.join(BASE_DIR, "..", "pth_files", "bone_fracture_classifier.pth")
 
-model = models.resnet18(weights=None)
-model.fc = nn.Linear(model.fc.in_features, 2)
-model.load_state_dict(torch.load(MODEL_PTH, map_location=device))
-model.to(device).eval()
+def load_model():
+    model = models.resnet18(weights=None)
+    model.fc = nn.Linear(model.fc.in_features, 2)
+    model.load_state_dict(torch.load(PTH_PATH, map_location=torch.device("cpu")))
+    model.to("cpu")
+    model.eval()
+    return model
+
+model = load_model()
 
 transform = transforms.Compose([
     transforms.Resize((224, 224)),
@@ -37,42 +32,22 @@ transform = transforms.Compose([
 
 class_names = ["Normal", "Fracture"]
 
-def handler(job):
+def handler(base64_image: str):
     try:
-        image_base64 = job.get("input", "")
-        if not image_base64:
-            return {"status": "error", "message": "No image data received."}
+        if base64_image.startswith("data:image"):
+            base64_image = base64_image.split(",")[1]
 
-        if image_base64.startswith("data:image"):
-            image_base64 = image_base64.split(",")[1]
+        image_bytes = base64.b64decode(base64_image)
+        original_image = Image.open(BytesIO(image_bytes)).convert("RGB")
 
-        image_bytes = base64.b64decode(image_base64)
-
-        try:
-            original_image = Image.open(BytesIO(image_bytes)).convert("RGB")
-        except UnidentifiedImageError:
-            return {"status": "error", "message": "Invalid image format."}
-
-        img_for_model = transform(original_image).unsqueeze(0).to(device)
+        img_tensor = transform(original_image).unsqueeze(0)
 
         with torch.no_grad():
-            outputs = model(img_for_model)
-            pred_idx = torch.argmax(outputs, 1).item()
+            outputs = model(img_tensor)
+            pred_idx = outputs.argmax(1).item()
             prediction = class_names[pred_idx]
 
-        target_layer = model.layer4[-1]
-        cam = GradCAM(model=model, target_layers=[target_layer])
-        grayscale_cam = cam(
-            input_tensor=img_for_model,
-            targets=[ClassifierOutputTarget(pred_idx)]
-        )[0]
-
-        img_np = np.array(original_image.resize((224, 224))) / 255.0
-        heatmap = show_cam_on_image(img_np, grayscale_cam, use_rgb=True)
-
-        buffer = BytesIO()
-        Image.fromarray(heatmap).save(buffer, format="JPEG")
-        heatmap_base64 = base64.b64encode(buffer.getvalue()).decode("utf-8")
+        heatmap_base64 = generate_heatmap(model, img_tensor, original_image, pred_idx)
 
         return {
             "status": "success",
@@ -82,12 +57,3 @@ def handler(job):
 
     except Exception as e:
         return {"status": "error", "message": str(e)}
-
-if __name__ == "__main__":
-    try:
-        input_json = sys.stdin.read()
-        job = json.loads(input_json)
-        result = handler(job)
-        print(json.dumps(result), flush=True)
-    except Exception as e:
-        print(json.dumps({"status": "error", "message": str(e)}), flush=True)
