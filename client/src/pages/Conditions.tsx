@@ -14,7 +14,7 @@ function Conditions() {
     <div className="flex flex-col min-h-screen bg-gray-50">
       <header className="flex flex-col items-center text-center py-12 px-6 bg-gradient-to-r from-blue-100 via-white to-blue-100 shadow-lg">
         <h1 className="text-gray-900 font-extrabold text-3xl md:text-5xl tracking-tight mb-3">
-          Disease Detection System
+          E-Afya Disease Detection AI System
         </h1>
         <p className="text-gray-700 font-medium text-base md:text-lg max-w-3xl leading-relaxed">
           AI-powered analysis for <span className="font-semibold text-blue-600">early detection of various diseases</span> using medical imaging and clinical data.
