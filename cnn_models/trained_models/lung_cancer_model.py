@@ -10,27 +10,34 @@ import numpy as np
 from pytorch_grad_cam import GradCAM
 from pytorch_grad_cam.utils.image import show_cam_on_image
 from pytorch_grad_cam.utils.model_targets import ClassifierOutputTarget
+import os
 
 warnings.filterwarnings("ignore")
 ImageFile.LOAD_TRUNCATED_IMAGES = True
 device = torch.device("cpu")
 
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+PTH_DIR = os.path.join(BASE_DIR, "pth_files")
 
-stage1 = models.resnet18(weights=None)
-stage1.fc = nn.Linear(stage1.fc.in_features, 2)
-stage1.load_state_dict(torch.load(
-    r'C:\Projects\python\deep_learning\chest_xray_phneumonia_detection_CNN\pth_files\Normal_Abnormal_lungcancer_classifier.pth',
-    map_location=device
-))
-stage1.eval().to(device)
+STAGE1_PTH = os.path.join(PTH_DIR, "Normal_Abnormal_lungcancer_classifier.pth")
+STAGE2_PTH = os.path.join(PTH_DIR, "bm_classifier.pth")
 
-stage2 = models.resnet18(weights=models.ResNet18_Weights.IMAGENET1K_V1)
-stage2.fc = nn.Linear(stage2.fc.in_features, 2)
-stage2.load_state_dict(torch.load(
-    r'C:\Projects\python\deep_learning\chest_xray_phneumonia_detection_CNN\pth_files\bm_classifier.pth',
-    map_location=device
-))
-stage2.eval().to(device)
+def load_stage1():
+    model = models.resnet18(weights=None)
+    model.fc = nn.Linear(model.fc.in_features, 2)
+    model.load_state_dict(torch.load(STAGE1_PTH, map_location=device))
+    model.to(device).eval()
+    return model
+
+def load_stage2():
+    model = models.resnet18(weights=models.ResNet18_Weights.IMAGENET1K_V1)
+    model.fc = nn.Linear(model.fc.in_features, 2)
+    model.load_state_dict(torch.load(STAGE2_PTH, map_location=device))
+    model.to(device).eval()
+    return model
+
+stage1 = load_stage1()
+stage2 = load_stage2()
 
 transform = transforms.Compose([
     transforms.Resize((224, 224)),
@@ -39,20 +46,20 @@ transform = transforms.Compose([
                          std=[0.229, 0.224, 0.225])
 ])
 
-class_stage1 = ['Normal', 'Abnormal']
-class_stage2 = ['Benign', 'Malignant']
+class_stage1 = ["Normal", "Abnormal"]
+class_stage2 = ["Benign", "Malignant"]
 
 def handler(job):
     try:
-        img_b64 = job.get('input', '')
+        img_b64 = job.get("input", "")
         if not img_b64:
             return {"status": "error", "message": "No image data received."}
 
-        if img_b64.startswith('data:image'):
-            img_b64 = img_b64.split(',')[1]
+        if img_b64.startswith("data:image"):
+            img_b64 = img_b64.split(",")[1]
 
         img_bytes = base64.b64decode(img_b64)
-        original = Image.open(BytesIO(img_bytes)).convert('RGB')
+        original = Image.open(BytesIO(img_bytes)).convert("RGB")
         model_input = transform(original).unsqueeze(0).to(device)
 
         with torch.no_grad():
@@ -61,17 +68,23 @@ def handler(job):
             label1 = class_stage1[pred1]
 
         final_pred = label1
-        if label1 == 'Abnormal':
+
+        if label1 == "Abnormal":
             out2 = stage2(model_input)
             pred2 = torch.argmax(out2, 1).item()
             final_pred = class_stage2[pred2]
+        else:
+            pred2 = None
 
-        cam_model = stage2 if label1 == 'Abnormal' else stage1
-        target_idx = pred2 if label1 == 'Abnormal' else pred1
+        cam_model = stage2 if label1 == "Abnormal" else stage1
+        target_idx = pred2 if label1 == "Abnormal" else pred1
         target_layer = cam_model.layer4[-1]
 
         cam = GradCAM(model=cam_model, target_layers=[target_layer])
-        grayscale_cam = cam(input_tensor=model_input, targets=[ClassifierOutputTarget(target_idx)])[0]
+        grayscale_cam = cam(
+            input_tensor=model_input,
+            targets=[ClassifierOutputTarget(target_idx)]
+        )[0]
 
         cam_resized = np.array(
             Image.fromarray((grayscale_cam * 255).astype(np.uint8)).resize(original.size)
@@ -82,7 +95,7 @@ def handler(job):
 
         buffer = BytesIO()
         Image.fromarray(heatmap).save(buffer, format="JPEG")
-        heatmap_b64 = base64.b64encode(buffer.getvalue()).decode('utf-8')
+        heatmap_b64 = base64.b64encode(buffer.getvalue()).decode("utf-8")
 
         return {
             "status": "success",
@@ -93,7 +106,6 @@ def handler(job):
 
     except Exception as e:
         return {"status": "error", "message": str(e)}
-
 
 if __name__ == "__main__":
     try:
