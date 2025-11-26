@@ -1,31 +1,25 @@
-#%%
+import os, base64
+from io import BytesIO
+from PIL import Image, ImageFile, UnidentifiedImageError
 import torch
 import torch.nn as nn
 from torchvision import models, transforms
-from PIL import Image, ImageFile, UnidentifiedImageError
-import base64
-from io import BytesIO
-import sys, json, warnings
-import numpy as np
-import cv2
+from utils.heatmap import generate_heatmap
 
-from pytorch_grad_cam import GradCAM
-from pytorch_grad_cam.utils.image import show_cam_on_image
-from pytorch_grad_cam.utils.model_targets import ClassifierOutputTarget
-
-warnings.filterwarnings("ignore")
 ImageFile.LOAD_TRUNCATED_IMAGES = True
 
-model = models.resnet18(weights=None)
-model.fc = nn.Linear(model.fc.in_features, 2)
-model.load_state_dict(torch.load(
-    r'C:\Projects\python\deep_learning\chest_xray_phneumonia_detection_CNN\pth_files\pneumonia_classifier.pth',
-    map_location=torch.device('cpu')
-))
-model.eval()
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+PTH_PATH = os.path.join(BASE_DIR, "..", "pth_files", "pneumonia_classifier.pth")
 
-device = torch.device("cpu")
-model.to(device)
+def load_model():
+    model = models.resnet18(weights=None)
+    model.fc = nn.Linear(model.fc.in_features, 2)
+    model.load_state_dict(torch.load(PTH_PATH, map_location=torch.device("cpu")))
+    model.to("cpu")
+    model.eval()
+    return model
+
+model = load_model()
 
 transform = transforms.Compose([
     transforms.Resize((224, 224)),
@@ -36,43 +30,32 @@ transform = transforms.Compose([
     )
 ])
 
-class_names = ['NORMAL', 'PNEUMONIA']
+class_names = ["Normal", "Pneumonia"]
 
-def handler(job):
+def handler(base64_image: str):
     try:
-        image_base64 = job.get('input', '')
-        if not image_base64:
-            return {"status": "error", "message": "No image data received."}
+        if not base64_image:
+            return {"status": "error", "message": "No image data provided"}
 
-        if image_base64.startswith('data:image'):
-            image_base64 = image_base64.split(',')[1]
+        # Remove data URL prefix if present
+        if base64_image.startswith("data:image"):
+            base64_image = base64_image.split(",")[1]
 
-        image_bytes = base64.b64decode(image_base64)
+        # Decode
+        image_bytes = base64.b64decode(base64_image)
+        original_image = Image.open(BytesIO(image_bytes)).convert("RGB")
 
-        try:
-            original_image = Image.open(BytesIO(image_bytes)).convert('RGB')
-        except UnidentifiedImageError:
-            return {"status": "error", "message": "Invalid image format."}
+        # Preprocess
+        img_tensor = transform(original_image).unsqueeze(0)
 
-        img_for_model = transform(original_image).unsqueeze(0).to(device)
-
+        # Predict
         with torch.no_grad():
-            outputs = model(img_for_model)
-            pred_idx = torch.argmax(outputs, 1).item()
+            outputs = model(img_tensor)
+            pred_idx = outputs.argmax(1).item()
             prediction = class_names[pred_idx]
 
-        target_layer = model.layer4[-1]
-        cam = GradCAM(model=model, target_layers=[target_layer])
-        targets = [ClassifierOutputTarget(pred_idx)]
-        grayscale_cam = cam(input_tensor=img_for_model, targets=targets)[0]
-
-        img_np = np.array(original_image.resize((224, 224))) / 255.0
-        heatmap = show_cam_on_image(img_np, grayscale_cam, use_rgb=True)
-
-        heatmap_pil = Image.fromarray(heatmap)
-        buffer = BytesIO()
-        heatmap_pil.save(buffer, format="JPEG")
-        heatmap_base64 = base64.b64encode(buffer.getvalue()).decode('utf-8')
+        # Generate heatmap
+        heatmap_base64 = generate_heatmap(model, img_tensor, original_image, pred_idx)
 
         return {
             "status": "success",
@@ -81,13 +64,5 @@ def handler(job):
         }
 
     except Exception as e:
+        print("MODEL ERROR:", repr(e))
         return {"status": "error", "message": str(e)}
-
-if __name__ == "__main__":
-    try:
-        input_json = sys.stdin.read()
-        job = json.loads(input_json)
-        result = handler(job)
-        print(json.dumps(result), flush=True)
-    except Exception as e:
-        print(json.dumps({"status": "error", "message": str(e)}), flush=True)
