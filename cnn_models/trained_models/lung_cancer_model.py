@@ -44,6 +44,9 @@ class_stage2 = ["Benign", "Malignant"]
 
 def handler(base64_image: str):
     try:
+        if not base64_image:
+            return {"status": "error", "message": "No image data provided"}
+
         if base64_image.startswith("data:image"):
             base64_image = base64_image.split(",")[1]
 
@@ -56,18 +59,17 @@ def handler(base64_image: str):
             pred1 = out1.argmax(1).item()
             label1 = class_stage1[pred1]
 
+        pred2 = None
+        final_label = label1
         if label1 == "Abnormal":
             out2 = stage2(img_tensor)
             pred2 = out2.argmax(1).item()
             final_label = class_stage2[pred2]
-            chosen_model = stage2
-            chosen_idx = pred2
-        else:
-            final_label = label1
-            chosen_model = stage1
-            chosen_idx = pred1
 
-        heatmap_base64 = generate_heatmap(chosen_model, img_tensor, original_image, chosen_idx)
+        chosen_model = stage2 if label1 == "Abnormal" else stage1
+        target_idx = pred2 if label1 == "Abnormal" else pred1
+
+        heatmap_base64 = generate_heatmap(chosen_model, img_tensor, original_image, target_idx)
 
         return {
             "status": "success",
