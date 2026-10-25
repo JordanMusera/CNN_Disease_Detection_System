@@ -22,7 +22,7 @@ def load_stage1():
     return model
 
 def load_stage2():
-    model = models.resnet18(weights=models.ResNet18_Weights.IMAGENET1K_V1)
+    model = models.resnet18(weights=None)
     model.fc = nn.Linear(model.fc.in_features, 2)
     model.load_state_dict(torch.load(STAGE2_PATH, map_location=device))
     model.to(device)

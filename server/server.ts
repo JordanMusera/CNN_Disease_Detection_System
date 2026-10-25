@@ -3,20 +3,25 @@ import cors from "cors";
 
 const app = express();
 
-app.use((req, res, next) => {
-  res.header("Access-Control-Allow-Origin", "https://cnn-disease-detection-system-client.onrender.com");
-  res.header("Access-Control-Allow-Headers", "Content-Type, Authorization");
-  res.header("Access-Control-Allow-Methods", "GET, POST");
-  next();
-});
+app.use(cors({
+  origin: (origin, callback) => {
+    const allowed = !origin || origin === "https://cnn-disease-detection-system-client.onrender.com" ||
+      /^https?:\/\/(localhost|127\.0\.0\.1):\d+$/.test(origin) ||
+      (process.env.CLIENT_ORIGINS || "").split(",").map((item) => item.trim()).includes(origin);
+    callback(null, allowed);
+  },
+  methods: ["GET", "POST", "OPTIONS"],
+  allowedHeaders: ["Content-Type", "Authorization"],
+}));
 
 
-app.use(express.json({ limit: "20mb" }));
+app.use(express.json({ limit: "50mb" }));
 
-const PYTHON_API_URL = "https://cnn-disease-detection-system-models.onrender.com";
+const PYTHON_API_URL = process.env.PYTHON_API_URL || "http://127.0.0.1:8000";
 
-app.listen(5000, () =>
-  console.log("Node Server running on http://localhost:5000")
+const port = Number(process.env.PORT || 5000);
+app.listen(port, () =>
+  console.log(`Node Server running on http://localhost:${port}`)
 );
 
 async function callPythonModel(model: string, imageBase64: string) {
@@ -26,27 +31,42 @@ async function callPythonModel(model: string, imageBase64: string) {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ image_base64: imageBase64 }),
     });
-
-    if (!response.ok) {
-      const text = await response.text();
-      throw new Error(`Python API error: ${text}`);
+    const responseText = await response.text();
+    let data: any;
+    try {
+      data = JSON.parse(responseText);
+    } catch {
+      const detail = responseText.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim().slice(0, 300);
+      throw new Error(`Model service returned HTTP ${response.status}${detail ? `: ${detail}` : " with an unreadable response."}`);
     }
-
-    const data = await response.json();
+    if (!response.ok) {
+      throw new Error(data.detail || data.message || `Model service returned HTTP ${response.status}.`);
+    }
     return data;
   } catch (err) {
-    console.error("Error calling Python API:", err);
-    return { status: "error", message: err || "Unknown error" };
+    const message = err instanceof Error ? err.message : "Unknown model service error.";
+    console.error("Error calling model service:", message);
+    return { status: "error", message };
   }
 }
 
 app.post("/post", async (req: Request, res: Response) => {
-  const { model, image } = req.body;
-
-  if (!image) {
-    return res.status(400).json({ message: "No image provided" });
+  const { model, image } = req.body || {};
+  const supportedModels = ["bone_fracture", "lung_cancer", "pneumonia", "tuberculosis"];
+  if (!supportedModels.includes(model)) {
+    return res.status(400).json({ status: "error", message: "Choose a supported disease model." });
   }
-
+  if (typeof image !== "string" || !image.startsWith("data:image/") || !image.includes(",")) {
+    return res.status(400).json({ status: "error", message: "Upload a valid image file and try again." });
+  }
   const result = await callPythonModel(model, image);
-  res.json(result);
+  res.status(result.status === "error" ? 502 : 200).json(result);
+});
+
+app.use((err: any, _req: Request, res: Response, _next: any) => {
+  if (err?.type === "entity.too.large") {
+    return res.status(413).json({ status: "error", message: "Image is too large to upload. Please choose an image smaller than about 36 MB." });
+  }
+  console.error("API request error:", err);
+  return res.status(400).json({ status: "error", message: "The request could not be processed." });
 });
